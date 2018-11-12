@@ -21,50 +21,39 @@ import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.InsertOneOptions;
 import com.sun.org.apache.bcel.internal.generic.DCONST;
 
 
-public class ContainerDetailsConsumer extends ConsumerThread {
+public class ContainerIdToMountConsumer extends ConsumerThread {
 	 private MongoClient client=null;  
 	 private MongoDatabase database=null;
 	 private MongoCollection<Document> collection=null;
-	 InsertManyOptions insertManyOptions= new InsertManyOptions();
-	 
+	 InsertOneOptions insertOneOptions= new InsertOneOptions();
 	 private Gson gson= new Gson();
 	 Type  mapType= new TypeToken<Map<String,Object>>(){}.getType();
      Type listType= new TypeToken<List<Map<String,Object>>>(){}.getType();
-     public ContainerDetailsConsumer(MongoConnection connection,String brokers, String groupId, String topic) {
+     public ContainerIdToMountConsumer(MongoConnection connection,String brokers, String groupId, String topic) {
     	 super(brokers, groupId, topic);
     	client = connection.getMongo();
 		database=client.getDatabase("dockerx");
-		collection=database.getCollection("containers");
-		insertManyOptions.bypassDocumentValidation(true);
-	}
+		collection=database.getCollection("containersToMounts");
+		insertOneOptions.bypassDocumentValidation(true);
+     }
 	
 	
 	 @Override
 	  public void run() {
-		
-	    while (true) {
-	      ConsumerRecords<String, String> records = consumer.poll(100);
-	      for (ConsumerRecord<String, String> record : records) {
-	    	
-	    	  Map<String, Object> map=gson.fromJson(record.value(), mapType);
-	    	  List<Map<String,Object>> containerList=(List<Map<String,Object>>)map.get("value");
-	    	  List<Document> documents= new ArrayList();
-	    	  for(Map<String,Object> container:containerList) {
-	    		  container.put("machineHostName", record.key());
-	    	      documents.add(new Document(container));
-	    	  }
-	    	  collection.insertMany(documents,insertManyOptions);
-	      
-	        System.out.println("Receive message: " + record.value() + ", Partition: "
-	            + record.partition() + ", Offset: " + record.offset() + ", by ThreadID: "
-	            + Thread.currentThread().getId());
-	      }
-	    }
-	 
-	  }
+	
+		 while (true) {
+				ConsumerRecords<String, String> records = consumer.poll(100);
+				for (ConsumerRecord<String, String> record : records) {
 
+					Document document = new Document(record.key(), record.value());
+					collection.insertOne(document,insertOneOptions);
+					System.out.println("Receive message: " + record.value() + ", Partition: " + record.partition()
+							+ ", Offset: " + record.offset() + ", by ThreadID: " + Thread.currentThread().getId());
+				}
+			}
+	 }
 }
